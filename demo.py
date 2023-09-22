@@ -9,6 +9,7 @@ import os
 import sqlite3
 import yaml
 from yaml.loader import SafeLoader
+from langchain.text_splitter import CharacterTextSplitter
 with open(r'C:\Users\Abhishek\Desktop\Herbalise\credentials.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -121,7 +122,20 @@ def main():
 def application():
     prompt = st.text_input("Enter the prompt for the medicine formulation")
     if st.button('submit'):
-        extract_text_from_pdf()
+        with st.spinner("processing"):
+            #get the texts from the pdf
+            raw_data = extract_text_from_pdf(pdf_path)
+            #converting the texts into chunks of texts
+            text_chunks = get_text_chunks(raw_data)
+            st.write(text_chunks)
+
+def get_text_chunks(raw_data):
+    text_splitter = CharacterTextSplitter(
+        separator="\n",
+        chunk_size=1000,
+        chunk_overlap=200,
+        lenght_function=len
+    )
 
 def extract_text_from_pdf(pdf_path):
     text = ""
