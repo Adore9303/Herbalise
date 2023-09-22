@@ -3,11 +3,11 @@ import streamlit as st
 import base64
 import plotly.express as px
 import streamlit_authenticator as stauth
+import PyPDF2
+from PyPDF2 import PdfReader
+import os 
 import sqlite3
 import yaml
-import os 
-from PyPDF2 import PdfReader
-from dotenv import load_dotenv
 from yaml.loader import SafeLoader
 with open(r'C:\Users\Abhishek\Desktop\Herbalise\credentials.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
@@ -20,10 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-load_dotenv()  # Load environment variables from .env file
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Get API key from environment variable
-
-#
+#user interface of the streamlit app
 df = px.data.iris()
 @st.cache_data
 def get_img_as_base64(file):
@@ -31,7 +28,7 @@ def get_img_as_base64(file):
         data = f.read()
     return base64.b64encode(data).decode()
 
-img = get_img_as_base64(r"C:\Users\Abhishek\OneDrive\Desktop\pexels-nataliya-vaitkevich-7615574.jpg")
+img = get_img_as_base64(r"C:\Users\Abhishek\Desktop\pexels-nataliya-vaitkevich-7615574.jpg")
 
 page_bg_img = f"""
 <style>
@@ -62,8 +59,6 @@ right: 2rem;
 }}
 </style>
 """
-
-
 conn = sqlite3.connect('data.db')
 c = conn.cursor()
 def create_usertable(): 
@@ -77,29 +72,6 @@ def login_user(username,password):
     data = c.fetchall()
     return data
 
-
-def application():
-    prompt = st.text_input("Enter the prompt for the medicine formulation")
-    if st.button('submit'):
-        
-        with st.spinner("processing"):
-            folder_path = r'C:\Users\Abhishek\Desktop\Herbalise\Datassets'
-            if os.path.isdir(folder_path):
-                # List all PDF files in the directory
-                pdf_files = [f for f in os.listdir(folder_path) if f.endswith('.pdf')]
-                #get pdf text
-                raw_data = get_pdf_text([pdf_files])
-                st.write(raw_data)
-
-def get_pdf_text(pdf_files):
-    text=""
-    for pdf in pdf_files:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    return text    
-    
-
 authenticator = stauth.Authenticate (
     config['credentials'],
     config['cookie']['name'],
@@ -108,22 +80,18 @@ authenticator = stauth.Authenticate (
     config['preauthorized']
 )
 
-
-
-
-
-
 st.markdown(page_bg_img, unsafe_allow_html=True)
 st.sidebar.title("Configuration")
 
+
 def main():
     st.title("Ayurvedic Practitioner's Portal")
-
     menu = ["Home", "Login", "SignUp","Application"]
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Home":
         st.subheader("Home")
+        
 
     elif choice == "Login":
         st.subheader("Login Section")
@@ -134,10 +102,9 @@ def main():
             print("Data from the database:", data)
             if data:
                 st.write(f'Welcome *{data[0][0]}*')
-                application()
+                
             else:
                 st.error('username/password is incorrect')
-
     elif choice == "SignUp":
         st.subheader("Create an Account")
         username = st.text_input('Username')
@@ -146,7 +113,27 @@ def main():
             create_usertable()
             add_userdata(username,password)
             st.success("You have successfully created an account. Go to the Login Menu to login")
-    
-            
+
+    elif choice == "Application":
+        st.subheader("Application")
+        application()
+
+def application():
+    prompt = st.text_input("Enter the prompt for the medicine formulation")
+    if st.button('submit'):
+        extract_text_from_pdf()
+
+def extract_text_from_pdf(pdf_path):
+    text = ""
+    with open(pdf_path, "rb") as pdf_file:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        for page_num in range(len(pdf_reader.pages)):
+            text += pdf_reader.pages[page_num].extract_text()
+    return text
+
+# Example usage:
+pdf_path = r"C:\Users\Abhishek\Desktop\Herbalise\Datasets\Data_Communications_and_Networking_Behro.pdf"
+extracted_text = extract_text_from_pdf(pdf_path)
+
 if __name__ == "__main__":
     main()
