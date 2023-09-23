@@ -8,7 +8,6 @@ from PyPDF2 import PdfReader
 import os 
 import sqlite3
 import yaml
-import openai
 from dotenv import load_dotenv
 from yaml.loader import SafeLoader
 from langchain.text_splitter import CharacterTextSplitter
@@ -18,49 +17,14 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from html_templet import css, bot_template, user_template
-with open(r'C:\Users\mayan\Downloads\Compressed\Herbalise-main\Herbalise-main\credentials.yaml') as file:
+with open(r'C:\Users\Abhishek\Desktop\Herbalise\credentials.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
-
-openai.api_key = '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'
-
-def get_openai_answer(question):
-    try:
-        # Use a structured message with a system message and a user message
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant that provides information about Ayurveda."},
-            {"role": "user", "content": question}
-        ]
-
-        # Create a chat-based completion request
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k-0613",
-            messages=messages,
-            max_tokens=1000  # Allow some extra tokens for flexibility
-        )
-
-        # Extract the model's reply
-        answer = response['choices'][0]['message']['content']
-
-        # Find the farthest full stop (period) before the 1000th character
-        last_period_index = answer[:1000].rfind('.')
-
-        if last_period_index != -1:
-            # Truncate at the farthest period
-            answer = answer[:last_period_index + 1]
-
-        # If the answer is too long, truncate it to 1000 characters
-        if len(answer) > 1000:
-            answer = answer[:1000]
-
-        return answer.strip()
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
 
 # Set the page configuration
 st.set_page_config(
-    page_title="Herbalize",
+    page_title="Ayurvedic Practitioner's Portal",
     page_icon="🌿",
-    layout="centered",
+    layout="centered",  
     initial_sidebar_state="expanded",
 )
 
@@ -75,7 +39,7 @@ def get_img_as_base64(file):
         data = f.read()
     return base64.b64encode(data).decode()
 
-img = get_img_as_base64(r"C:\Users\mayan\Downloads\Compressed\Herbalise-main\Herbalise-main\bgone.jpg")
+img = get_img_as_base64(r"C:\Users\Abhishek\Desktop\pexels-nataliya-vaitkevich-7615574.jpg")
 
 page_bg_img = f"""
 <style>
@@ -131,11 +95,6 @@ authenticator = stauth.Authenticate (
 st.markdown(page_bg_img, unsafe_allow_html=True)
 st.sidebar.title("Configuration")
 
-def get_vectorstore(text_chunks):
-    embeddings = OpenAIEmbeddings()
-    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-    return vectorstore
 
 def main():
     st.title("Ayurvedic Practitioner's Portal")
@@ -143,35 +102,7 @@ def main():
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Home":
-        st.markdown(
-        """
-        <style>
-        .block-container.css-1y4p8pa.ea3mdgi4{
-        padding-top:0px !important;
-        }
-        .st-b3.st-b8.st-dh.st-b1.st-bq.st-ae.st-af.st-ag.st-ah.st-ai.st-aj.st-br.st-de{
-            height: 40px !important;
-        }
-        .css-q8sbsg.e1nzilvr5{
-        font-size:2em !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
         st.subheader("Home")
-        blog = get_openai_answer("Write a blog about ayurveda")
-        st.write(blog)
-        st.subheader("Ask a question about Ayurveda")
-        user_question = st.text_area("")
-        initial_sidebar_state="collapsed"
-        if st.button("Submit"):
-            print("hello")
-            # Perform question-answering using the extracted text
-            answer = get_openai_answer(user_question)
-            # Display the answer
-            st.write("Answer:")
-            st.write(answer)
         
 
     elif choice == "Login":
@@ -199,38 +130,28 @@ def main():
         st.subheader("Application")
         application()
 
-
-
-
-def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI()
-    # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512})
-
-    memory = ConversationBufferMemory(
-        memory_key='chat_history', return_messages=True)
-    conversation_chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=vectorstore.as_retriever(),
-        memory=memory
-    )
-    return conversation_chain
-
-
 def application():
+    if "conversation" not in st.session_state:
+        st.session_state.conversation = None
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = None
+    
     st.write(css, unsafe_allow_html=True)
     prompt = st.text_input("Enter the prompt for the medicine formulation")
     if st.button('submit'):
         if prompt:
-            with st.spinner("processing"):
-                # Get the texts from the pdf
-                raw_data = extract_text_from_pdf(pdf_path)
-                # Converting the texts into chunks of texts
-                text_chunks = get_text_chunks(raw_data)
-                # Creating a vectorstore
-                vectorstore = get_vectorstore(text_chunks)
-                # Create conversation chain
-                conversation = get_conversation_chain(vectorstore)
-                return conversation
+            handle_userinput(prompt)
+
+        with st.spinner("processing"):
+            #get the texts from the pdf
+            raw_data = extract_text_from_pdf(pdf_path)
+            #converting the texts into chunks of texts
+            text_chunks = get_text_chunks(raw_data)
+            #Creating a vectorstore
+            vectorstore = get_vectorstore(text_chunks)
+            #create conversation chain
+            st.session_state.conversation = get_conversation_chain(vectorstore)
+    
 
 def extract_text_from_pdf(pdf_path):
     text = ""
@@ -241,29 +162,44 @@ def extract_text_from_pdf(pdf_path):
     return text
 
 # Example usage:
-pdf_path = r"C:\Users\mayan\Downloads\testrealrr.pdf"
+pdf_path = r"C:\Users\Abhishek\Desktop\Herbalise\Datasets\Data_Communications_and_Networking_Behro.pdf"
 extracted_text = extract_text_from_pdf(pdf_path)
 
 def get_text_chunks(raw_data):
-    separator = "\n"
-    chunk_size = 1000
-    chunk_overlap = 200
-    length_function = len
+    text_splitter = CharacterTextSplitter(
+        separator="\n",
+        chunk_size=1000,
+        chunk_overlap=200,
+        lenght_function=len
+    )
 
-    text_chunks = []
-    start = 0
+def get_vectorstore(text_chunks):
+    #embeddings = OpenAIEmbeddings()
+    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    vectorstore = FAISS.from_text(texts=text_chunks, embedding= embeddings)
+    return vectorstore
 
-    while start < len(raw_data):
-        end = start + chunk_size
-        if end > len(raw_data):
-            end = len(raw_data)
-        text_chunk = raw_data[start:end]
-        text_chunks.append(text_chunk)
-        start = end - chunk_overlap
+def get_conversation_chain(vectorstore):
+    llm = ChatOpenAI
+    memory = ConversationBufferMemory("chat_history",rerturn_memory=True)
+    conversation_chain = ConversationalRetrievalChain.from_llm(
+        llm= llm,
+        retriever= vectorstore.as_retriever(),
+        memory=memory    
+    )
+    return conversation_chain
 
-    return text_chunks
+def handle_userinput(prompt):
+    response = st.session_state.conversation({'question': prompt})
+    st.session_state.chat_history = response['chat_history']
 
-
+    for i, message in enumerate(st.session_state.chat_history):
+        if i % 2 == 0:
+            st.write(user_template.replace(
+                "{{MSG}}", message.content), unsafe_allow_html=True)
+        else:
+            st.write(bot_template.replace(
+                "{{MSG}}", message.content), unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
