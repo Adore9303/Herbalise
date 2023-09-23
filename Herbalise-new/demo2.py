@@ -8,6 +8,9 @@ import os
 import sqlite3
 import yaml
 import openai
+import googletrans
+from google_trans_new import google_translator 
+from gtts import gTTS
 from PyPDF2 import PdfFileReader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings, HuggingFaceEmbeddings
@@ -22,14 +25,18 @@ with open(r'credentials.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
 logged_in = False
+language = "en-IN"
+translator = google_translator()  
 
 # Set the page configuration
 st.set_page_config(
     page_title="Herbalize",
     page_icon="🌿",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
+
+translator = googletrans.Translator()
 
 
 
@@ -46,8 +53,8 @@ def get_img_as_base64(file):
     return base64.b64encode(data).decode()
 
 #providing the image path for the background image
-img = get_img_as_base64(r"bgtwo.png")
-openai.api_key = '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'
+img = get_img_as_base64(r"bgfour.png")
+openai.api_key = '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'
 
 #style section
 page_bg_img = f"""
@@ -56,13 +63,13 @@ page_bg_img = f"""
 background-image: url("data:image/png;base64,{img}");
 background-size: 100%;
 background-position: top left;
-background-repeat: no-repeat;
+background-repeat: repeat;
 background-attachment: local;
 }}
 
 [data-testid="stSidebar"] > div:first-child {{
 background-image: url("https://wallpapercave.com/wp/wp6845532.jpg"); 
-background-repeat: no-repeat;
+background-repeat: repeat;
 background-size: 100%;
 background-attachment: fixed;
 background-position: right;
@@ -104,16 +111,15 @@ def login():
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type='password')
     if st.button("Login"):
-        data=login_user(username_input, password_input)
+        data = login_user(username_input, password_input)
         print("Data from the database:", data)
         if data:
             st.write(f'Welcome *{data[0][0]}*')
-            st.success("You have successfully logined. Go to the Application")
-            logged_in=True
-            return True
+            st.success("You have successfully logged in. Go to the Application")
+            st.session_state.logged_in = True  # Set the logged_in session variable to True
         else:
-            st.error('username/password is incorrect')
-            return False
+            st.error('Username/password is incorrect')
+
 
 #creating a sidebar for navigation bwt various part of the streamlit app
 st.markdown(page_bg_img, unsafe_allow_html=True)
@@ -154,6 +160,18 @@ def get_openai_answer(question):
         return f"An error occurred: {str(e)}"
 
 
+
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+def is_user_logged_in():
+    if st.session_state.logged_in:
+        return True
+    else:
+        return False    
+
+    
+
 #mail function of the streamlit app
 def main():
     menu = ["Home", "Login", "SignUp","Application"]
@@ -164,7 +182,6 @@ def main():
         st.markdown(
         """
         <style>
-        
         #root{
         height:800px;
         width: 1000px;
@@ -182,7 +199,7 @@ def main():
         """,
         unsafe_allow_html=True,
     )
-        st.subheader("Home")
+        st.header("Home")
         blog = get_openai_answer("Write a blog about ayurveda")
         st.write(blog)
         st.subheader("Ask a question about Ayurveda")
@@ -195,6 +212,9 @@ def main():
             # Display the answer
             st.write("Answer:")
             st.write(answer)
+            speech = gTTS(text = answer, lang=language, slow=False, tld="com.au")
+            speech.save("textToSpeech.mp3")
+            st.audio("textToSpeech.mp3")
         
 
     elif choice == "Login":
@@ -210,10 +230,12 @@ def main():
             add_userdata(username,password)
             st.success("You have successfully created an account. Go to the Login Menu to login")
 
-    elif choice == "Application" and logged_in:
-        st.subheader("Application")
-        
-        application()
+    elif choice == "Application":
+        if is_user_logged_in():
+            st.subheader("Application")
+            application()
+        else:
+            st.error("You must be logged in to access this part of the application.")
         
 
 def extract_text_from_pdf(pdf_path):
